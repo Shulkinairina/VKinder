@@ -1,6 +1,7 @@
 import database
 from datetime import datetime
 from io import BytesIO
+import asyncio
 
 from vkbottle import API, Keyboard, Callback, PhotoMessageUploader
 from vkbottle.bot import BotLabeler, Message
@@ -16,16 +17,15 @@ uploader = PhotoMessageUploader(api, generate_attachment_strings=True)
 
 http_client = AiohttpClient()
 
+offset = 0
 
 # Получаем данные со страницы пользователя и ищем подходящие анкеты
 @bl.message(text="поиск")
 async def search_user(message: Message):
-    token = database.get_token(message.from_id)
-    if token is None:
-        await message.answer(
-            "❌ Сначала введите команду !рег token, где <token> - ваш access_token. Вы можете получить его на сайте: https://vkhost.github.io/"
-        )
-        return
+    global offset
+
+    token = config.VK_USER_TOKEN
+
     await message.answer(
         "🔍 Ищем подходящие анкеты. Этот процесс может занять некоторое время."
     )
@@ -37,6 +37,14 @@ async def search_user(message: Message):
     # получаем данные со страницы пользователя
     user = await api.users.get(fields="sex,city,bdate")
 
+    if user[0].sex.value == 0:
+        await message.answer("⚠️ В вашем профиле не указан пол! Укажите его на данной странице:\nhttps://id.vk.com/account/#/personal")
+        return
+    
+    if user[0].city is None:
+        await message.answer("⚠️ В вашем профиле не указан город! Укажите его на данной странице:\nhttps://vk.com/edit?act=contacts")
+        return
+
     sex = 2 if user[0].sex.value == 1 else 1 if user[0].sex.value == 2 else None
     city = user[0].city.id
     age = datetime.now().year - int(user[0].bdate.split(".")[2])
@@ -46,34 +54,35 @@ async def search_user(message: Message):
     groups = groups.groups.items
 
     # ищем подходящие анкеты
-    users = await search.get(api, age, city, groups, sex)
+    i = 0
+    while True:
+        users = await search.get(api, age, city, groups, sex, offset)
+        if len(users) == 0:
+            await message.answer("⚠️ Вы просмотрели все подходящие профили.")
+            return
 
-    # удаляем из списка анкеты из черного списка
-    blacklist = database.get_blacklist(message.from_id)
-    if blacklist is None:
-        blacklist = []
+        # удаляем из списка анкеты из черного списка, списка лайкнутых и просмтренных
+        blacklist = database.get_blacklist(message.from_id)
+        likes = database.get_likes(message.from_id)
+        viewed = database.get_viewed_profiles(message.from_id)
 
-    new_blacklist = []
-    for user in blacklist:
-        new_blacklist.append(int(user[0]))
+        for filter in [blacklist, likes, viewed]:
+            if filter is None:
+                filter = []
+            new_filter = []
+            for _id in filter:
+                print(_id)
+                new_filter.append(int(_id[0]))
+            users = [user for user in users if user[0].id not in new_filter]
 
-    blacklist = new_blacklist
-
-    users = [user for user in users if user[0].id not in blacklist]
-
-    # удаляем из списка анкеты, которым пользователь уже поставил лайк
-    likes = database.get_likes(message.from_id)
-
-    if likes is None:
-        likes = []
-
-    new_likes = []
-    for like in likes:
-        new_likes.append(int(like[0]))
-
-    likes = new_likes
-
-    users = [user for user in users if user[0].id not in likes]
+        if len(users) == 0:
+            i+=1
+            if i == 4: 
+                await message.answer("⚠️ Вы просмотрели все подходящие профили.")
+                return
+            offset=+50
+        else:
+            break
 
     # если подходящих анкет не нашлось
     if len(users) == 0:
@@ -87,6 +96,7 @@ async def search_user(message: Message):
         keyboard.add(Callback("💔", payload={"command": "dislike", "id": user[0].id}))
 
         # получаем топ-3 фотографии пользователя
+        await asyncio.sleep(1)
         photos_user = await photos.get(api, user[0].id)
         if photos_user is None:
             continue
@@ -105,3 +115,5 @@ async def search_user(message: Message):
             attachment=attachments,
             keyboard=keyboard.get_json(),
         )
+
+        database.add_viewed_profiles(message.from_id, user[0].id)

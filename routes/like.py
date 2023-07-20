@@ -53,7 +53,7 @@ async def show_likes(message: Message):
         return
 
     # инициализируем API
-    api = API(token=database.get_token(message.from_id))
+    api = API(token=config.VK_USER_TOKEN)
 
     # получаем данные пользователей
     users = await api.users.get(user_ids=likes, fields="photo_max_orig")
@@ -91,7 +91,7 @@ async def show_blacklist(message: Message):
         return
 
     # инициализируем API
-    api = API(token=database.get_token(message.from_id))
+    api = API(token=config.VK_USER_TOKEN)
 
     # получаем данные пользователей
     users = await api.users.get(user_ids=blacklist, fields="photo_max_orig")
@@ -107,3 +107,10 @@ async def show_blacklist(message: Message):
         await message.answer(
             f"👎 {user.first_name} {user.last_name}\n @id{user.id}", attachment=photo
         )
+    print(blacklist)
+
+
+@bl.message(text="дб")
+async def debug(message: Message):
+    viewed = database.get_viewed_profiles(message.from_id)
+    print(viewed)

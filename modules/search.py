@@ -12,26 +12,31 @@ async def get(
     city: int,
     groups: list[int],
     sex: int = 0,
+    offset: int = 0
 ) -> list[tuple[User, list[int], int]]:
     # Ищем пользователей по полу, городу, возрасту и семейному положению
     users = []
     offset = 0
     while True:
-        response = await api.users.search(
-            count=1000,
-            age_from=age - 3,
-            age_to=age + 3,
-            status=6,  # в активном поиске
-            sex=sex,
-            has_photo=1,  # с фотографией
-            city=city,
-            offset=offset,
-        )
+        try:
+            response = await api.users.search(
+                count=50,
+                age_from=age - 3,
+                age_to=age + 3,
+                status=6,  # в активном поиске
+                sex=sex,
+                has_photo=1,  # с фотографией
+                city=city,
+                offset=offset,
+            )
+        except VKAPIError as ex:
+            print(ex)
+            await asyncio.sleep(2)
+            continue
+        
         users += response.items
-        # добавьте здесь break, если вам не нужно более 1000 результатов
-        if len(response.items) < 1000:
-            break
-        offset += 1000
+        break
+        
 
     # Получаем список сообществ пользователей
     users_with_groups = []

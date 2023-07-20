@@ -1,3 +1,3 @@
-from . import login, start, like, search
+from . import start, like, search
 
-labelers = [login.bl, start.bl, like.bl, search.bl]
+labelers = [start.bl, like.bl, search.bl]
