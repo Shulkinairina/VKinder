@@ -34,26 +34,29 @@ async def search_user(message: Message):
     api = API(token=token)
 
     # данные которые нам нужны: age city groups sex
-    # получаем данные со страницы пользователя
+    # получаем данные со страницы пользователя или из базы данных
     user = await api.users.get(fields="sex,city,bdate")
 
-    if user[0].sex.value == 0:
-        await message.answer("⚠️ В вашем профиле не указан пол! Укажите его на данной странице:\nhttps://id.vk.com/account/#/personal")
-        return
-    
-    if user[0].city is None:
-        await message.answer("⚠️ В вашем профиле не указан город! Укажите его на данной странице:\nhttps://vk.com/edit?act=contacts")
-        return
-
-    sex = 2 if user[0].sex.value == 1 else 1 if user[0].sex.value == 2 else None
-    city = user[0].city.id
-    age = datetime.now().year - int(user[0].bdate.split(".")[2])
+    if user[0].sex.value == 0 or user[0].city is None:
+        try:
+            sex, city, bdate = database.get_user_data()
+        except:
+            await message.answer("⚠️ В вашем профиле недостаточно информации. Введите команду 'рег' для заполнения профиля.")
+            return
+    else:
+        bdate = int(user[0].bdate.split(".")[2])
+        sex = 2 if user[0].sex.value == 1 else 1 if user[0].sex.value == 2 else None
+        city = user[0].city.id
+    age = datetime.now().year - bdate
 
     # получаем список групп пользователя
     groups = await api.users.get_subscriptions(user_id=message.from_id)
     groups = groups.groups.items
 
     # ищем подходящие анкеты
+    # если в актуальном батче из 50 анкет не нашлось подходящих
+    # то увеличиваем offset на 50 и ищем дальше.
+    # если подходящих анкет не нашлось в 4 батчах, то завершаем поиск.
     i = 0
     while True:
         users = await search.get(api, age, city, groups, sex, offset)

@@ -1,12 +1,14 @@
 import sqlite3 as sql
 
-# База данных с тремя таблицами
+# База данных с четырьмя таблицами
 # 1. Лайки пользователя
 # Связка id пользователя в ВК и список id пользователей, которым он поставил лайк
 # 2. Черный список
 # Связка id пользователя в ВК и список id пользователей, которых он добавил в черный список
 # 3. Список просмотренных
 # Связка id пользователя в ВК и список id пользователей, анкеты которых он уже видел.
+# 4. Данные о пользователе
+# Пол, город и возраст пользователя. Пользователь всего один, поэтому таблица состоит из одной строки.
 
 # Подключаемся к базе данных
 conn = sql.connect("database.db")
@@ -35,6 +37,15 @@ cursor.execute(
     id INTEGER PRIMARY KEY,
     user_id INTEGER,
     viewed_profiles TEXT
+)"""
+)
+
+cursor.execute(
+    """CREATE TABLE IF NOT EXISTS user_data (
+    id INTEGER PRIMARY KEY,
+    city INTEGER,
+    sex INTEGER,
+    year INTEGER
 )"""
 )
 
@@ -83,3 +94,20 @@ def get_viewed_profiles(id: int):
         return None
     return viewed_profiles
 
+# Функция сохранения данных о пользователе
+def add_user_data(city, sex, year):
+    cursor.execute("INSERT INTO user_data VALUES (1, ?, ?, ?)", (city, sex, year))
+    conn.commit()
+
+# Функция получения данных о пользователе
+def get_user_data():
+    cursor.execute("SELECT * FROM user_data WHERE id = 1")
+    user_data = cursor.fetchone()
+    if user_data is None:
+        return None
+    return user_data
+
+# Функция обновления данных о пользователе
+def update_user_data(city, sex, year):
+    cursor.execute("UPDATE user_data SET city = ?, sex = ?, year = ? WHERE id = 1", (city, sex, year))
+    conn.commit()
